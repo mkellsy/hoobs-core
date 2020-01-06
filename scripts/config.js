@@ -39,7 +39,7 @@ module.exports = () => {
         }
 
         if (File.existsSync("/var/root/.hoobs/etc/config.json")) {
-            throbber.start("/var/roo");
+            throbber.start("/var/root");
 
             reConfigure("/var/root/.hoobs/etc/config.json");
         }
@@ -49,7 +49,7 @@ module.exports = () => {
 
         resolve();
     });
-}
+};
 
 const reConfigure = function(filename) {
     const config = JSON.parse(File.readFileSync(filename));
@@ -87,4 +87,4 @@ const reConfigure = function(filename) {
     delete config.server.socket;
 
     File.writeFileSync(filename, JSON.stringify(config, null, 4));
-}
+};

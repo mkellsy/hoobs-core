@@ -26,8 +26,6 @@
 </template>
 
 <script>
-    import _ from "lodash";
-
     import TextField from "@/components/text-field.vue";
     import PasswordField from "@/components/password-field.vue";
 
@@ -76,7 +74,7 @@
                     this.name = this.username;
                 }
 
-                if ((this.password !== "" || this.challenge !== "") && !this.strongPassword()) {
+                if ((this.password !== "" || this.challenge !== "") && this.password.length < 5) {
                     this.errors.push(this.$t("password_weak"));
                 }
 
@@ -99,10 +97,6 @@
                         });
                     }
                 }
-            },
-
-            strongPassword() {
-                return (/(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%&*()]).{8,}/).test(this.password);
             }
         }
     }

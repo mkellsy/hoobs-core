@@ -84,9 +84,7 @@
             return {
                 skip: false,
                 current: undefined,
-                interval: null,
                 empty: false,
-                pollingSeconds: 15,
                 accessories: {
                     rooms: []
                 }
@@ -112,40 +110,33 @@
         },
 
         async mounted() {
-            this.pollingSeconds = this.$server.polling_seconds || 15 < 15 ? 15 : this.$server.polling_seconds || 15;
             this.accessories = await this.api.get("/accessories");
             this.empty = JSON.stringify(this.accessories.rooms) === "[{\"name\":\"Unassigned\",\"accessories\":[]}]";
 
-            if (this.pollingSeconds > 0) {
-                this.interval = setInterval(() => {
-                    this.heartbeat();
-                }, this.pollingSeconds * 1000);
-            }
-
             this.showRoom(0);
-            this.heartbeat();
         },
 
-        destroyed() {
-            if (this.interval) {
-                clearInterval(this.interval);   
-            } 
+        async created() {
+            this.$store.subscribe(async (mutation, state) => {
+                switch (mutation.type) {
+                    case "update":
+                        if (!this.skip && this.running && !this.locked) {
+                            try {
+                                this.accessories = await this.api.get("/accessories");
+                                this.empty = JSON.stringify(this.accessories.rooms) === "[{\"name\":\"Unassigned\",\"accessories\":[]}]";
+                            } catch {
+                                this.skip = true;
+                            }
+                        } else {
+                            this.skip = false;
+                        }
+
+                        break;
+                }
+            });
         },
 
         methods: {
-            async heartbeat() {
-                if (!this.skip && this.running && !this.locked) {
-                    try {
-                        this.accessories = await this.api.get("/accessories");
-                        this.empty = JSON.stringify(this.accessories.rooms) === "[{\"name\":\"Unassigned\",\"accessories\":[]}]";
-                    } catch {
-                        this.skip = true;
-                    }
-                } else {
-                    this.skip = false;
-                }
-            },
-
             showRoom(index) {
                 if (!this.empty) {
                     if (index < 0) {

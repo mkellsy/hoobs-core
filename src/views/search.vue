@@ -9,32 +9,36 @@
             <div v-if="user.admin" class="search-field">
                 <input type="text" v-model="query" :placeholder="$t('search_packages')" onfocus="this.placeholder = ''" :onblur="`this.placeholder = '${$t('search_packages')}'`" />
             </div>
+            <loading-marquee v-if="searching" class="searching" :height="3" color="--title-text" background="--title-text-dim" />
             <div v-if="query !== ''" class="list">
                 <plugin-list v-for="(plugin, index) in results" :key="`plugin-${index}`" :plugin="plugin" :oninstall="oninstall" :onuninstall="onuninstall" :onupdate="onupdate" />
                 <div v-if="results.length === 0 && !working" class="empty">{{ $t("no_results") }}</div>
             </div>
             <div v-else class="cards">
                 <plugin-card v-for="(plugin, index) in certified" :key="`certified-${index}`" :plugin="plugin" :oninstall="oninstall" :onuninstall="onuninstall" :onupdate="onupdate" />
-                <div v-if="certified.length === 0 && !working" class="empty">{{ $t("no_results") }}</div>
+                <div v-if="certified.length === 0 && !working && !searching" class="empty">{{ $t("no_results") }}</div>
             </div>
         </div>
     </div>
 </template>
 
 <script>
-    import _ from "lodash";
     import Decamelize from "decamelize";
     import Inflection from "inflection";
 
+    import { debounce } from "lodash-es";
+
     import PluginList from "@/components/plugin-list.vue";
     import PluginCard from "@/components/plugin-card.vue";
+    import Marquee from "@/components/loading-marquee.vue";
 
     export default {
         name: "search",
 
         components: {
             "plugin-list": PluginList,
-            "plugin-card": PluginCard
+            "plugin-card": PluginCard,
+            "loading-marquee": Marquee
         },
 
         props: {
@@ -54,6 +58,7 @@
         data() {
             return {
                 working: true,
+                searching: false,
                 results: [],
                 certified: [],
                 query: ""
@@ -72,7 +77,7 @@
         },
 
         created: function () {
-            this.debouncedSearch = _.debounce(this.search, 500)
+            this.debouncedSearch = debounce(this.search, 500)
         },
 
         watch: {
@@ -87,11 +92,16 @@
 
         methods: {
             async search() {
-                if (this.query.length > 3) {
-                    this.working = true;
+                if (this.query.length >= 3) {
+                    this.working = true
+
+                    setTimeout(() => {
+                        this.searching = this.working;
+                    }, 500);
 
                     this.results = await this.api.post(`/plugins/${encodeURIComponent(this.query)}/50`);
 
+                    this.searching = false;
                     this.working = false;
                     this.initial = false;
 
@@ -137,29 +147,40 @@
             },
 
             async fetchCertified(category) {
-                this.working = true;
-
                 this.certified = [];
 
                 if (!category || category.length === 0) {
                     return;
                 }
 
+                this.working = true
+
+                setTimeout(() => {
+                    this.searching = this.working;
+                }, 500);
+
                 this.certified = await this.api.get(`/plugins/certified/${category}`);
 
+                this.searching = false;
                 this.working = false;
             },
 
-            oninstall(type, name, alias, plugin) {
-                window.location.href = `/config/${plugin.name}`;
+            oninstall(name, plugin, details) {
+                this.$router.push({
+                    path: `/config/${name}`
+                });
             },
 
             onuninstall() {
-                window.location.href = "/plugins";
+                this.$router.push({
+                    path: "/plugins"
+                });
             },
 
             onupdate() {
-                window.location.href = "/plugins";
+                this.$router.push({
+                    path: "/plugins"
+                });
             }
         }
     }
@@ -176,6 +197,7 @@
     #search .info {
         width: 230px;
         padding: 20px 0 20px 20px;
+        overflow: auto;
     }
 
     #search .info a,
@@ -232,6 +254,10 @@
         outline: 0 none;
         background: var(--input-background);
         border: 1px var(--link-text) solid;
+    }
+
+    #search .searching {
+        margin: 0 22px;
     }
 
     #search .list {

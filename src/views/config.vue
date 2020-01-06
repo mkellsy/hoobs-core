@@ -3,8 +3,8 @@
         <div v-if="loaded" class="info mobile-hide">
             <router-link to="/config/interface" :class="section === 'interface' ? 'active': ''">{{ $t("interface_settings") }}</router-link>
             <router-link to="/config/server" :class="section === 'server' ? 'active': ''">{{ $t("server_settings") }}</router-link>
-            <router-link to="/config/bridge" :class="section === 'bridge' ? 'active': ''">{{ $t("bridge_settings") }}</router-link>
             <router-link to="/config/ports" :class="section === 'ports' ? 'active': ''">{{ $t("port_ranges") }}</router-link>
+            <router-link to="/config/bridge" :class="section === 'bridge' ? 'active': ''">Apple Home</router-link>
             <div v-for="(plugin, index) in plugins" :key="`${index}-platform-link`">
                 <div v-if="user.admin || plugin.scope === 'hoobs'">
                     <router-link :to="`/config/${plugin.name}`" :class="section === plugin.name ? 'active': ''">{{ pluginTitle(plugin) }}</router-link>
@@ -12,6 +12,7 @@
             </div>
             <router-link v-if="user.admin" to="/config/advanced" :class="section === 'advanced' ? 'active mobile-hide': 'mobile-hide'">{{ $t("advanced") }}</router-link>
             <router-link to="/config/backup" :class="section === 'backup' ? 'active': ''">{{ $t("backup") }}</router-link>
+            <router-link v-if="user.admin" to="/config/restore" :class="section === 'restore' ? 'active': ''">{{ $t("restore") }}</router-link>
             <div class="actions">
                 <div v-if="!working && loaded" v-on:click.stop="save()" class="button button-primary">{{ $t("save_changes") }}</div>
                 <div v-if="working" class="loading">
@@ -34,13 +35,15 @@
                     <p>
                         {{ $t("interface_settings_message") }}
                     </p>
-                    <select-field :name="$t('language')" :description="$t('language_message')" :options="locales" v-model="configuration.client.locale" @change="markReload()" />
-                    <select-field :name="$t('theme')" :description="$t('theme_message')" :options="themes" v-model="configuration.client.theme" @change="markReload()" />
-                    <select-field :name="$t('default_screen')" :description="$t('default_screen_message')" :options="screens" v-model="configuration.client.default_route" @change="markReload()" />
-                    <integer-field :name="$t('log_out_after')" :description="$t('log_out_after_message')" v-model.number="configuration.client.inactive_logoff" @change="markReload()" :required="true" />
-                    <select-field :name="$t('temp_units')" :description="$t('temp_units_message')" :options="units" v-model="configuration.client.temp_units" @change="markReload()" />
-                    <select-field :name="$t('country_code')" :description="$t('country_code_message')" :options="countries" v-model="configuration.client.country_code" @change="markReload()" />
-                    <text-field :name="$t('postal_code')" :description="$t('postal_code_message')" v-model="configuration.client.postal_code" @change="markReload()" :required="true" />
+                    <select-field :name="$t('language')" :description="$t('language_message')" :options="locales" v-model="configuration.client.locale" />
+                    <select-field :name="$t('theme')" :description="$t('theme_message')" :options="themes" v-model="configuration.client.theme" />
+                    <select-field :name="$t('default_screen')" :description="$t('default_screen_message')" :options="screens" v-model="configuration.client.default_route" />
+                    <integer-field :name="$t('log_out_after')" :description="$t('log_out_after_message')" v-model.number="configuration.client.inactive_logoff" :required="true" />
+                    <select-field :name="$t('temp_units')" :description="$t('temp_units_message')" :options="units" v-model="configuration.client.temp_units" />
+                    <select-field :name="$t('country_code')" :description="$t('country_code_message')" :options="countries" v-model="configuration.client.country_code" />
+                    <text-field :name="$t('postal_code')" :description="$t('postal_code_message')" v-model="configuration.client.postal_code" :required="true" />
+                    <text-field :name="$t('latitude')" :description="$t('latitude_message')" v-model="configuration.client.latitude" :required="true" />
+                    <text-field :name="$t('longitude')" :description="$t('longitude_message')" v-model="configuration.client.longitude" :required="true" />
                 </div>
                 <div class="section" v-if="section === 'server' || screen.width <= 815">
                     <h2>{{ $t("server_settings") }}</h2>
@@ -51,17 +54,6 @@
                     <integer-field :name="$t('autostart_after')" :description="$t('autostart_after_message')" v-model.number="configuration.server.autostart" :required="false" @change="markReboot()" />
                     <integer-field :name="$t('polling_seconds')" :description="$t('polling_seconds_message')" v-model.number="configuration.server.polling_seconds" :required="true" @change="markReboot()" />
                 </div>
-                <div class="section" v-if="section === 'bridge' || screen.width <= 815">
-                    <h2>{{ $t("bridge_settings") }}</h2>
-                    <p>
-                        {{ $t("bridge_settings_message") }}
-                    </p>
-                    <text-field :name="$t('service_name')" :description="$t('service_name_message')" v-model="configuration.bridge.name" :required="true" />
-                    <description-field :name="$t('service_description')" :description="$t('service_description_message')" v-model="configuration.description" />
-                    <port-field :name="$t('service_port')" :description="$t('service_port_message')" v-model.number="configuration.bridge.port" :required="true" />
-                    <hex-field :name="$t('home_username')" :description="$t('home_username_message')" v-model="configuration.bridge.username" :required="true" />
-                    <text-field :name="$t('home_pin')" :description="$t('home_pin_message')" v-model="configuration.bridge.pin" :required="true" />
-                </div>
                 <div class="section" v-if="section === 'ports' || screen.width <= 815">
                     <h2>{{ $t("port_ranges") }}</h2>
                     <p>
@@ -70,6 +62,17 @@
                     <text-field :name="$t('range_name')" :description="$t('range_name_message')" v-model="configuration.ports.comment" />
                     <port-field :name="$t('start_port')" :description="$t('start_port_message')" v-model.number="configuration.ports.start" />
                     <port-field :name="$t('end_port')" :description="$t('end_port_message')" v-model.number="configuration.ports.end" />
+                </div>
+                <div class="section" v-if="section === 'bridge' || screen.width <= 815">
+                    <h2>Apple Home</h2>
+                    <p>
+                        {{ $t("bridge_settings_message") }}
+                    </p>
+                    <text-field :name="$t('service_name')" :description="$t('service_name_message')" v-model="configuration.bridge.name" :required="true" />
+                    <description-field :name="$t('service_description')" :description="$t('service_description_message')" v-model="configuration.description" />
+                    <port-field :name="$t('service_port')" :description="$t('service_port_message')" v-model.number="configuration.bridge.port" :required="true" />
+                    <hex-field :name="$t('home_username')" :description="$t('home_username_message')" v-model="configuration.bridge.username" :required="true" />
+                    <text-field :name="$t('home_pin')" :description="$t('home_pin_message')" v-model="configuration.bridge.pin" :required="true" />
                 </div>
                 <div v-for="(plugin, index) in plugins" :key="`${index}-plugin`">
                     <div class="section" v-if="(section === plugin.name || screen.width <= 815) && (user.admin || plugin.scope === 'hoobs')">
@@ -85,9 +88,32 @@
                     <p>
                         {{ $t("backup_message") }}
                     </p>
-                    <div class="action">
-                        <div v-on:click.stop="backup()" class="button">{{ $t("config") }}</div>
-                        <div v-on:click.stop="logs()" class="button">{{ $t("log") }}</div>
+                    <div v-if="working" class="action">
+                        <div class="button disabled">{{ $t("system") }}</div>
+                        <div class="button disabled">{{ $t("config") }}</div>
+                        <div class="button disabled">{{ $t("log") }}</div>
+                    </div>
+                    <div v-else class="action">
+                        <div v-on:click.stop="backup('system')" class="button">{{ $t("system") }}</div>
+                        <div v-on:click.stop="backup('config')" class="button">{{ $t("config") }}</div>
+                        <div v-on:click.stop="backup('logs')" class="button">{{ $t("log") }}</div>
+                    </div>
+                </div>
+                <div class="section" v-if="(section === 'restore' || screen.width <= 815) && user.admin">
+                    <h2>{{ $t("restore") }}</h2>
+                    <p>
+                        {{ $t("restore_message") }}<br>
+                        <b>{{ $t("warning") }}</b> {{ $t("restore_warning") }}
+                    </p>
+                    <div v-if="working" class="action">
+                        <div class="button disabled">{{ $t("system") }}</div>
+                        <div class="button disabled">{{ $t("config") }}</div>
+                    </div>
+                    <div v-else class="action">
+                        <input type="file" ref="hbf" v-on:change="restore('hbf')" accept=".hbf" hidden />
+                        <div v-on:click.stop="upload('hbf')" class="button">{{ $t("system") }}</div>
+                        <input type="file" ref="cfg" v-on:change="restore('cfg')" accept=".json" hidden />
+                        <div v-on:click.stop="upload('cfg')" class="button">{{ $t("config") }}</div>
                     </div>
                 </div>
                 <div class="mobile-show">
@@ -109,10 +135,14 @@
         <modal-dialog v-if="confirmReboot" width="440px" :ok="rebootDevice" :cancel="cancelReboot">
             <div class="dialog-message">{{ $t("config_reboot_confirm") }}</div>
         </modal-dialog>
+        <modal-dialog v-if="error" width="440px" :ok="confirmError">
+            <div class="dialog-message">{{ message }}</div>
+        </modal-dialog>
     </div>
 </template>
 
 <script>
+    import Request from "axios";
     import Decamelize from "decamelize";
     import Inflection from "inflection";
 
@@ -159,10 +189,6 @@
                 return this.$store.state.user;
             },
 
-            system() {
-                return this.$system;
-            },
-
             screen() {
                 return this.$store.state.screen;
             },
@@ -177,8 +203,9 @@
                 loaded: false,
                 working: false,
                 ready: false,
-                reload: false,
                 reboot: false,
+                error: false,
+                message: "Unhandled error",
                 confirmReboot: false,
                 configuration: {
                     server: {
@@ -195,7 +222,9 @@
                         locale: null,
                         temp_units: null,
                         country_code: null,
-                        postal_code: null
+                        postal_code: null,
+                        longitude: null,
+                        latitude: null
                     },
                     bridge: {
                         name: null,
@@ -305,13 +334,16 @@
         async mounted() {
             await this.load();
 
-            this.themes = [{
-                text: this.$t(`${this.system}_light`),
-                value: `${this.system}-light`
-            },{
-                text: this.$t(`${this.system}_dark`),
-                value: `${this.system}-dark`
-            }];
+            this.themes = [];
+
+            const keys = Object.keys(this.$themes);
+
+            for (let i = 0; i < keys.length; i++) {
+                this.themes.push({
+                    text: this.$themes[keys[i]].translate ? this.$t(this.$themes[keys[i]].translate) : this.$themes[keys[i]].title ? this.$themes[keys[i]].title : keys[i],
+                    value: keys[i]
+                });
+            }
         },
 
         updated() {
@@ -358,10 +390,6 @@
                 this.reboot = true;
             },
 
-            markReload() {
-                this.reload = true;
-            },
-
             async rebootDevice() {
                 this.confirmReboot = false;
 
@@ -369,12 +397,16 @@
                 this.$store.commit("hide", "service");
 
                 await this.api.post("/service/stop");
+                await this.api.put("/reboot");
 
-                this.api.put("/reboot");
+                setTimeout(() => {
+                    this.$store.commit("reboot");
+                }, 500);
             },
             
             cancelReboot() {
                 this.confirmReboot = false;
+                this.$router.go(0);
             },
 
             addError(message) {
@@ -391,40 +423,140 @@
                 }
             },
 
-            async backup() {
-                this.working = true;
+            async backup(type) {
+                if (!this.locked) {
+                    this.$store.commit("lock");
+                    this.working = true;
 
-                const response = await this.api.post("/config/backup");
+                    let response;
+                    let element;
 
-                this.working = false;
+                    switch (type) {
+                        case "system":
+                            response = await this.api.post("/backup");
 
-                if (response.success) {
-                    const element = document.createElement("a");
+                            if (response.success) {
+                                window.location.href = response.filename;
+                            } else {
+                                this.message = response.error;
+                                this.error = true;
+                            }
 
-                    element.setAttribute("href", `data:text/plain;charset=utf-8,${encodeURIComponent(JSON.stringify(response.config, null, 4))}`);
-                    element.setAttribute("download", "config.json");
+                            this.working = false;
+                            this.$store.commit("unlock");
+                            break;
+                        
+                        case "config":
+                            response = await this.api.post("/config/backup");
 
-                    element.style.display = "none";
-                    document.body.appendChild(element);
+                            if (response.success) {
+                                element = document.createElement("a");
 
-                    element.click();
+                                element.setAttribute("href", `data:text/plain;charset=utf-8,${encodeURIComponent(JSON.stringify(response.config, null, 4))}`);
+                                element.setAttribute("download", "config.json");
 
-                    document.body.removeChild(element);
+                                element.style.display = "none";
+
+                                document.body.appendChild(element);
+
+                                element.click();
+
+                                document.body.removeChild(element);
+                            } else {
+                                this.message = "Unable to download configuration";
+                                this.error = true;
+                            }
+
+                            this.working = false;
+                            this.$store.commit("unlock");
+                            break;
+                        
+                        case "logs":
+                            this.$store.state.messages
+
+                            element = document.createElement("a");
+
+                            element.setAttribute("href", `data:text/plain;charset=utf-8,${encodeURIComponent(this.$store.state.messages.join("\r\n"))}`);
+                            element.setAttribute("download", "logs.txt");
+
+                            element.style.display = "none";
+
+                            document.body.appendChild(element);
+
+                            element.click();
+
+                            document.body.removeChild(element);
+
+                            this.working = false;
+                            this.$store.commit("unlock");
+                            break;
+                        
+                        default:
+                            this.working = false;
+                            this.$store.commit("unlock");
+                            break;
+                    }
                 }
             },
 
-            logs() {
-                const element = document.createElement("a");
+            upload(field) {
+                this.$refs[field].click();
+            },
 
-                element.setAttribute("href", `data:text/plain;charset=utf-8,${encodeURIComponent(this.$store.state.messages.join("\r\n"))}`);
-                element.setAttribute("download", "logs.txt");
+            async restore(field) {
+                this.working = true;
 
-                element.style.display = "none";
-                document.body.appendChild(element);
+                const data = new FormData();
 
-                element.click();
+                switch (field) {
+                    case "hbf":
+                        this.$store.commit("lock");
 
-                document.body.removeChild(element);
+                        data.append("file", this.$refs.hbf.files[0]);
+
+                        await Request.post("/api/restore", data, {
+                            headers: {
+                                "Authorization": this.$cookie("token"),
+                                "Content-Type": "multipart/form-data"
+                            }
+                        });
+
+                        setTimeout(() => {
+                            this.$store.commit("reboot");
+                        }, 1000 * 60 * 2);
+
+                        break;
+
+                    case "cfg":
+                        data.append("file", this.$refs.cfg.files[0]);
+
+                        await Request.post("/api/config/restore", data, {
+                            headers: {
+                                "Authorization": this.$cookie("token"),
+                                "Content-Type": "multipart/form-data"
+                            }
+                        });
+
+                        setTimeout(async () => {
+                            this.working = false;
+
+                            await this.$configure();
+                            await this.load();
+
+                            this.$store.commit("redraw");
+                        }, 500);
+
+                        break;
+
+                    default:
+                        this.working = false;
+                        break;
+                }
+            },
+
+            confirmError() {
+                this.error = false;
+                this.message = "Unhandled error";
             },
 
             configCode() {
@@ -445,7 +577,9 @@
                     return "Google Home";
                 }
 
-                const index = this.configuration.platforms.findIndex(p => p.platform === plugin.details.alias || (p.plugin_map || {}).plugin_name === plugin.name);
+                const alias = plugin.details.map(p => p.alias);
+
+                const index = this.configuration.platforms.findIndex(p => alias.indexOf(p.platform) >= 0 || (p.plugin_map || {}).plugin_name === plugin.name);
                 const platform = (plugin.schema || {}).platform || {};
                 const accessory = (plugin.schema || {}).accessories || {};
 
@@ -465,6 +599,8 @@
                 string = string.replace(/myq/gi, "myQ");
                 string = string.replace(/rgb/gi, "RGB");
                 string = string.replace(/ffmpeg/gi, "FFMPEG");
+                string = string.replace(/webos/gi, "LG webOS");
+                string = string.replace(/webostv/gi, "webOS");
 
                 return string;
             },
@@ -536,8 +672,8 @@
                         bridge: data.bridge,
                         description: data.description,
                         ports: data.ports,
-                        accessories: data.accessories,
-                        platforms: data.platforms
+                        accessories: data.accessories || [],
+                        platforms: data.platforms || []
                     });
 
                     this.errors = [];
@@ -550,15 +686,25 @@
                         await this.api.post("/service/start");
                     }
 
+                    this.$cookie("latitude", null, 0);
+                    this.$cookie("longitude", null, 0);
+                    this.$cookie("weather_query", null, 0);
+
+                    this.$store.commit("push", {
+                        type: "info",
+                        time: new Date().getTime(),
+                        title: "Configuration",
+                        message: "New configuration saved"
+                    });
+
                     this.$store.commit("unlock");
 
-                    if (this.reload && !this.reboot) {
-                        window.location.reload();
-                    } else if (this.reboot) {
+                    if (this.reboot) {
+                        this.working = false;
                         this.confirmReboot = true;
+                    } else {
+                        this.$router.go(0);
                     }
-
-                    this.load();
                 } else {
                     this.working = false;
                 }
@@ -578,6 +724,7 @@
     #config .info {
         width: 230px;
         padding: 20px 0 20px 20px;
+        overflow: auto;
     }
 
     #config .info a,

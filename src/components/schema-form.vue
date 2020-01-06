@@ -2,7 +2,7 @@
     <div id="schema-form">
         <div v-for="(field, index) in fields" :key="index">
             <div v-if="fieldType(field) === 'input'">
-                <component :is="getComponent(field)" :name="field.title || humanize(field.name)" :options="getOptions(field)" :required="field.required" :description="field.description || ''" v-model="value[field.name]" />
+                <component :is="getComponent(field)" :name="field.title || humanize(field.name)" :options="getOptions(field)" :type="getType(field)" :required="field.required" :description="field.description || ''" v-model="value[field.name]" />
             </div>
             <div v-else-if="fieldType(field) === 'form'">
                 <schema-form :schema="field.properties" v-model="value[field.name]" />
@@ -171,11 +171,17 @@
             },
 
             fieldType(field) {
-                const type = (field.type || "").toLowerCase();
+                let type = "string";
+
+                if (Array.isArray(field.type)) {
+                    type = field.type[field.type.length - 1].toLowerCase();
+                } else {
+                    type = (field.type || "").toLowerCase();
+                }
 
                 if (type === "button" && field.url && field.url !== "") {
                     return "button";
-                } else if (field && !field.readOnly && type !== "object") {
+                } else if (field && !field.readOnly && type !== "object" && type !== "array") {
                     return "input";
                 } else if (field && !field.readOnly && type === "object" && field.properties) {
                     if (field.name && !this.value[field.name]) {
@@ -184,6 +190,12 @@
 
                     return "form";
                 } else if (field && !field.readOnly && (type === "object" || type === "array")) {
+                    if (!this.value[field.name] && type === "array") {
+                        this.value[field.name] = [];
+                    } else if (!this.value[field.name]) {
+                        this.value[field.name] = {};
+                    }
+
                     return "json";
                 }
 
@@ -191,10 +203,18 @@
             },
 
             getComponent(field) {
-                switch((field.type || "").toLowerCase()) {
+                let type = "string";
+
+                if (Array.isArray(field.type)) {
+                    type = field.type[field.type.length - 1].toLowerCase();
+                } else {
+                    type = (field.type || "").toLowerCase();
+                }
+
+                switch(type) {
                     case "text":
                     case "string":
-                        if (field.oneOf || field.enum) {
+                        if (field.enum) {
                             return "select-field";
                         }
 
@@ -208,7 +228,7 @@
                     case "decimal":
                     case "double":
                     case "number":
-                        if (field.oneOf || field.enum) {
+                        if (field.enum) {
                             return "select-field";
                         }
 
@@ -216,7 +236,7 @@
 
                     case "int":
                     case "integer":
-                        if (field.oneOf || field.enum) {
+                        if (field.enum) {
                             return "select-field";
                         }
 
@@ -231,7 +251,15 @@
             },
 
             defaultValue(field) {
-                switch((field.type || "").toLowerCase()) {
+                let type = "string";
+
+                if (Array.isArray(field.type)) {
+                    type = field.type[field.type.length - 1].toLowerCase();
+                } else {
+                    type = (field.type || "").toLowerCase();
+                }
+
+                switch(type) {
                     case "text":
                     case "string":
                         return field.default || "";
@@ -255,7 +283,27 @@
                 return null;
             },
 
+            getType(field) {
+                let type = "string";
+
+                if (Array.isArray(field.type)) {
+                    type = field.type[field.type.length - 1].toLowerCase();
+                } else {
+                    type = (field.type || "").toLowerCase();
+                }
+
+                return type;
+            },
+
             getOptions(field) {
+                let type = "string";
+
+                if (Array.isArray(field.type)) {
+                    type = field.type[field.type.length - 1].toLowerCase();
+                } else {
+                    type = (field.type || "").toLowerCase();
+                }
+
                 const options = [];
 
                 if (field.enum && Array.isArray(field.enum)) {
@@ -279,28 +327,7 @@
                             });
                         }
                     }
-                } else if (field.oneOf && Array.isArray(field.oneOf)) {
-                    if (!field.required) {
-                        options.push({
-                            text: "",
-                            value: this.defaultValue(field)
-                        });
-                    }
-
-                    for (let i = 0; i < field.oneOf.length; i++) {
-                        if (field.oneOf[i].title && field.oneOf[i].enum && Array.isArray(field.oneOf[i].enum) && field.oneOf[i].enum.length > 0) {
-                            options.push({
-                                text: field.oneOf[i].title,
-                                value: field.oneOf[i].enum[0]
-                            });
-                        } else if (field.oneOf[i].title) {
-                            options.push({
-                                text: field.oneOf[i].title,
-                                value: field.oneOf[i].title
-                            });
-                        }
-                    }
-                } else if ((field.type || "").toLowerCase() === "boolean" || (field.type || "").toLowerCase() === "bool") {
+                } else if (type === "boolean" || type === "bool") {
                     options.push({
                         text: this.$t("yes"),
                         value: true

@@ -31,15 +31,12 @@
 
         data() {
             return {
-                loaded: false
+                loaded: false,
+                installed: []
             }
         },
 
         computed: {
-            installed() {
-                return this.$store.state.installed;
-            },
-
             user() {
                 return this.$store.state.user;
             },
@@ -54,7 +51,7 @@
                 this.$store.commit("category", await this.api.get(`/plugins/certified/categories`));
             }
 
-            this.$store.commit("cache", await this.api.get("/plugins"));
+            this.installed = await this.api.get("/plugins");
             this.loaded = true;
         },
 
@@ -85,16 +82,18 @@
                 });
             },
 
-            oninstall(type, name, alias, plugin) {
-                window.location.href = `/config/${plugin.name}`;
+            oninstall(name, plugin, details) {
+                this.$router.push({
+                    path: `/config/${name}`
+                });
             },
 
-            onuninstall() {
-                window.location.href = "/plugins";
+            async onuninstall() {
+                this.installed = await this.api.get("/plugins");
             },
 
-            onupdate() {
-                window.location.href = "/plugins";
+            async onupdate() {
+                this.installed = await this.api.get("/plugins");
             }
         }
     }
@@ -111,6 +110,7 @@
     #plugins .info {
         width: 230px;
         padding: 20px 0 20px 20px;
+        overflow: auto;
     }
 
     #plugins .info a,

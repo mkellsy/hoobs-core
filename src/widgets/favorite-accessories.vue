@@ -63,8 +63,6 @@
         data() {
             return {
                 skip: false,
-                interval: null,
-                pollingSeconds: 15,
                 accessories: []
             }
         },
@@ -84,37 +82,29 @@
         },
 
         async mounted() {
-            this.pollingSeconds = this.$server.polling_seconds || 15 < 15 ? 15 : this.$server.polling_seconds || 15;
             this.accessories = await this.api.get("/accessories/favorites");
-
-            if (this.pollingSeconds > 0) {
-                this.interval = setInterval(() => {
-                    this.heartbeat();
-                }, this.pollingSeconds * 1000);
-            }
-
-            this.heartbeat();
         },
 
-        destroyed() {
-            if (this.interval) {
-                clearInterval(this.interval);   
-            } 
+        async created() {
+            this.$store.subscribe(async (mutation, state) => {
+                switch (mutation.type) {
+                    case "update":
+                        if (!this.skip && this.running && !this.locked) {
+                            try {
+                                this.accessories = await this.api.get("/accessories/favorites");
+                            } catch {
+                                this.skip = true;
+                            }
+                        } else {
+                            this.skip = false;
+                        }
+
+                        break;
+                }
+            });
         },
 
         methods: {
-            async heartbeat() {
-                if (!this.skip && this.running && !this.locked) {
-                    try {
-                        this.accessories = await this.api.get("/accessories/favorites");
-                    } catch {
-                        this.skip = true;
-                    }
-                } else {
-                    this.skip = false;
-                }
-            },
-
             getComponent(accessory) {
                 switch (accessory.type) {
                     case "fan":
@@ -184,15 +174,16 @@
         width: 100%;
         height: 100%;
         overflow: auto;
+        cursor: default;
     }
 
     #favorites .accessories {
         height: 100%;
         padding: 60px 20px 20px 20px;
         display: flex;
-        flex-wrap: nowrap;
-        align-items: center;
-        align-content: center;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        align-content: flex-start;
         box-sizing: border-box;
         position: relative;
     }

@@ -19,6 +19,8 @@
     import Decamelize from "decamelize";
     import Inflection from "inflection";
 
+    import Cookies from "../cookies";
+
     import { Terminal } from "xterm";
     import { AttachAddon } from "xterm-addon-attach";
     import { FitAddon } from "xterm-addon-fit";
@@ -30,22 +32,6 @@
         computed: {
             user() {
                 return this.$store.state.user;
-            },
-
-            colors() {
-                switch (this.$system) {
-                    case "rocket":
-                        return {
-                            background: "#262626",
-                            foreground: "#f1f1f1"
-                        };
-
-                    default:
-                        return {
-                            background: "#474746",
-                            foreground: "#f1f1f1"
-                        };
-                }
             }
         },
 
@@ -53,17 +39,25 @@
             return {
                 info: null,
                 term: null,
-                socket: null
+                socket: null,
+                closing: false,
+                opening: true
             }
         },
 
         async mounted() {
+            this.closing = false;
+            this.opening = true;
+
             this.temp = await this.api.get("/system/temp");
             this.info = await this.api.get("/system");
 
             this.term = new Terminal({
                 cursorBlink: false,
-                theme: this.colors
+                theme: {
+                    background: this.$theme.terminal.background,
+                    foreground: this.$theme.terminal.foreground
+                }
             });
 
             this.screen = new FitAddon();
@@ -79,7 +73,13 @@
 
         destroyed() {
             this.term = null;
-            this.socket = null;
+            this.closing = true;
+
+            if (this.socket) {
+                this.socket.send("{EXIT}");
+                this.socket.close();
+                this.socket = null;
+            }
         },
 
         methods: {
@@ -95,17 +95,25 @@
                 url = url.replace("http://", "ws://");
                 url = url.replace("https://", "wss://");
 
-                this.socket = new WebSocket(`${url}${url.endsWith("/") ? "shell" : "/shell"}?t=${new Date().getTime()}`);
+                this.socket = new WebSocket(`${url}${url.endsWith("/") ? "shell" : "/shell"}?a=${Cookies.get("token") || ""}&t=${new Date().getTime()}`);
 
                 this.socket.onopen = () => {
                     this.term.loadAddon(new AttachAddon(this.socket));
 
-                    this.term.clear();
-                    this.term.focus();
+                    if (this.opening) {
+                        this.term.clear();
+                        this.term.focus();
+
+                        this.socket.send("{CLEAR}");
+
+                        this.opening = false;
+                    }
                 };
 
                 this.socket.onclose = () => {
-                    this.connect();
+                    if (!this.closing) {
+                        this.connect();
+                    }
                 };
 
                 this.socket.onerror = () => {
@@ -296,6 +304,7 @@
         width: 230px;
         padding: 20px;
         background: var(--background-dark);
+        overflow: auto;
     }
 
     #terminal .info a,

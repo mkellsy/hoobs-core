@@ -1,32 +1,47 @@
 const File = require("fs");
 const Process = require("child_process");
-const Ora = require("ora");
 
-module.exports = () => {
+module.exports = (reboot, service) => {
     return new Promise(async (resolve) => {
-        let throbber = null;
+        service = service || "hoobs.service";
 
-        const pms = getPms();
+        if (getPms()) {
+            Process.execSync(`systemctl enable ${service}`);
 
-        if (pms) {
-            console.log("---------------------------------------------------------");
-            console.log("HOOBS is Installed");
-            console.log("Pleade refresh your browser.");
-            console.log("---------------------------------------------------------");
-            console.log("The HOOBS interface should apear in 5 - 10 minutes");
-            console.log("depending on how many plugins you have installed.");
-            console.log("---------------------------------------------------------");
+            if (File.existsSync("/etc/systemd/system/multi-user.target.wants/homebridge.service")) {
+                Process.execSync("systemctl disable homebridge.service");
+            }
 
-            throbber = Ora("Rebooting").start();
+            if (File.existsSync("/etc/systemd/system/multi-user.target.wants/homebridge-config-ui-x.service")) {
+                Process.execSync("systemctl disable homebridge-config-ui-x.service");
+            }
+        
+            if (reboot) {
+                console.log("---------------------------------------------------------");
+                console.log("HOOBS is Installed");
+                console.log("Please redirect your browser to http://hoobs.local");
+                console.log("---------------------------------------------------------");
+                console.log("The HOOBS interface should apear in 5 - 10 minutes");
+                console.log("depending on how many plugins you have installed.");
+                console.log("---------------------------------------------------------");
+            }
 
-            Process.exec("shutdown -r now", () => {
-                throbber.stopAndPersist();
-            });
+            if (!reboot) {
+                if (File.existsSync("/etc/systemd/system/multi-user.target.wants/homebridge.service")) {
+                    Process.execSync("systemctl stop homebridge.service");
+                }
+    
+                if (File.existsSync("/etc/systemd/system/multi-user.target.wants/homebridge-config-ui-x.service")) {
+                    Process.execSync("systemctl stop homebridge-config-ui-x.service");
+                }
+
+                Process.execSync(`systemctl restart ${service}`);
+            }
         }
 
         resolve();
     });
-}
+};
 
 const getPms = function() {
     if (File.existsSync("/usr/bin/dnf")) {
@@ -42,4 +57,4 @@ const getPms = function() {
     }
 
     return null;
-}
+};

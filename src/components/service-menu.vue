@@ -1,5 +1,5 @@
 <template>
-    <div v-if="(user || {}).admin" id="service-menu">
+    <div v-if="!$cluster && (user || {}).admin" id="service-menu">
         <div v-if="user" class="profile">
             <span class="icon">account_circle</span>
             <div class="profile-details">
@@ -8,6 +8,8 @@
             </div>
         </div>
         <router-link to="/profile" class="item">{{ $t("profile") }}</router-link>
+        <div v-if="$router.currentRoute.name === 'status'" v-on:click="widgets" class="item mobile-hide">{{ $t("edit_dashboard") }}</div>
+        <router-link v-if="$router.currentRoute.name === 'accessories'" to="/accessories/layout" class="item mobile-hide">{{ $t("edit_rooms") }}</router-link>
         <div class="item-seperator"></div>
         <div v-if="!locked && !running" v-on:click.stop="control('start')" class="item">{{ $t("start_service") }}</div>
         <div v-else class="item-disabled">{{ $t("start_service") }}</div>
@@ -29,7 +31,7 @@
         <router-link to="/login" class="item">{{ $t("log_out") }}</router-link>
         <div class="button mobile-show menu-cancel">{{ $t("cancel") }}</div>
     </div>
-    <div v-else id="service-menu">
+    <div v-else-if="!$cluster" id="service-menu">
         <div class="profile">
             <span class="icon">account_circle</span>
             <div v-if="user" class="profile-details">
@@ -38,6 +40,8 @@
             </div>
         </div>
         <router-link to="/profile" class="item">{{ $t("profile") }}</router-link>
+        <div v-if="$router.currentRoute.name === 'status'" v-on:click="widgets" class="item mobile-hide">{{ $t("edit_dashboard") }}</div>
+        <router-link v-if="$router.currentRoute.name === 'accessories'" to="/accessories/layout" class="item mobile-hide">{{ $t("edit_rooms") }}</router-link>
         <div class="item-seperator"></div>
         <div v-if="!locked && !running" v-on:click.stop="control('start')" class="item">{{ $t("start_service") }}</div>
         <div v-else class="item-disabled">{{ $t("start_service") }}</div>
@@ -57,6 +61,20 @@
         <router-link to="/login" class="item">{{ $t("log_out") }}</router-link>
         <div class="button mobile-show menu-cancel">{{ $t("cancel") }}</div>
     </div>
+    <div v-else id="service-menu">
+        <div v-if="user" class="profile">
+            <span class="icon">account_circle</span>
+            <div class="profile-details">
+                <span class="sub-title">{{ $t("loged_in_as") }}</span>
+                <span class="identity">{{ user.name || user.username }}</span>
+            </div>
+        </div>
+        <div v-if="!locked" v-on:click.stop="reboot()" class="item">{{ $t("reboot_device") }}</div>
+        <div v-else class="item-disabled">{{ $t("reboot_device") }}</div>
+        <div class="item-seperator"></div>
+        <router-link to="/login" class="item">{{ $t("log_out") }}</router-link>
+        <div class="button mobile-show menu-cancel">{{ $t("cancel") }}</div>
+    </div>
 </template>
 
 <script>
@@ -64,7 +82,8 @@
         name: "service-menu",
 
         props: {
-            about: Function
+            about: Function,
+            widgets: Function
         },
 
         computed: {
@@ -87,8 +106,11 @@
                 this.$store.commit("hide", "service");
 
                 await this.api.post("/service/stop");
+                await this.api.put("/reboot");
 
-                this.api.put("/reboot");
+                setTimeout(() => {
+                    this.$store.commit("reboot");
+                }, 500);
             },
 
             async control(action) {

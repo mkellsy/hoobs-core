@@ -8,7 +8,7 @@
         <p v-else-if="plugin.description !== ''">
             {{ plugin.description }}
         </p>
-        <div v-if="plugin.details.type === 'platform' || plugin.details.type === 'both'">
+        <div v-if="plugin.details.findIndex(p => p.type === 'platform') >= 0">
             <div v-if="plugin.schema && plugin.schema.platform.schema.properties">
                 <schema-form :schema="plugin.schema.platform.schema.properties || {}" v-model="value.platforms[platformIndex()]" />
             </div>
@@ -16,7 +16,7 @@
                 <json-editor name="platform" :height="200" :index="platformIndex()" :change="updateJson" :code="platformCode()" />
             </div>
         </div>
-        <div v-if="plugin.details.type === 'accessory' || plugin.details.type === 'both'">
+        <div v-if="plugin.details.findIndex(p => p.type === 'accessory') >= 0">
             <div v-for="(key, index) in getAccessoryIndex()" :key="`${index}-accessory`">
                 <div v-if="value.accessories[key].plugin_map && accessories[accessoryKey(value.accessories[key])]">
                     <div class="accessory-title">
@@ -87,12 +87,12 @@
 
             alias() {
                 if (this.plugin.schema && this.plugin.schema.accessories) {
-                    return this.plugin.schema.accessories.plugin_alias || this.plugin.details.alias;
+                    return this.plugin.schema.accessories.plugin_alias || this.plugin.details.filter(p => p.type === "accessory")[0].alias;
                 } else if (this.plugin.schema && this.plugin.schema.platform) {
-                    return this.plugin.schema.platform.plugin_alias || this.plugin.details.alias;
+                    return this.plugin.schema.platform.plugin_alias || this.plugin.details.filter(p => p.type === "platform")[0].alias;
                 }
 
-                return this.plugin.details.alias;
+                return this.plugin.details[0].alias;
             },
 
             accessories() {
@@ -150,7 +150,7 @@
 
                 if (index === -1) {
                     this.value.platforms.push({
-                        platform: this.plugin.details.alias,
+                        platform: this.plugin.details.filter(p => p.type === "platform")[0].alias,
                         plugin_map: {
                             plugin_name: this.plugin.name
                         }
@@ -193,7 +193,7 @@
                     this.show.accessories = false;
 
                     const accessory = {
-                        accessory: this.plugin.details.alias,
+                        accessory: this.plugin.details.filter(p => p.type === "accessory")[0].alias,
                         plugin_map: {
                             plugin_name: this.plugin.name,
                             index
@@ -205,7 +205,7 @@
                     this.show.accessories = false;
 
                     this.value.accessories.push({
-                        accessory: this.plugin.details.alias,
+                        accessory: this.plugin.details.filter(p => p.type === "accessory")[0].alias,
                         plugin_map: {
                             plugin_name: this.plugin.name,
                             index: 0
@@ -223,7 +223,8 @@
             },
 
             platformIndex() {
-                const index = this.value.platforms.findIndex(p => p.platform === this.plugin.details.alias || (p.plugin_map || {}).plugin_name === this.plugin.name);
+                const alias = this.plugin.details.filter(p => p.type === "platform").map(p => p.alias);
+                const index = this.value.platforms.findIndex(p => alias.indexOf(p.platform) >= 0 || (p.plugin_map || {}).plugin_name === this.plugin.name);
                 const platform = (this.plugin.schema || {}).platform || {};
 
                 if (index >= 0 && platform.plugin_alias && (!this.value.platforms[index].platform || this.value.platforms[index].platform !== platform.plugin_alias)) {
@@ -235,9 +236,10 @@
 
             getAccessoryIndex() {
                 const index = [];
+                const alias = this.plugin.details.filter(p => p.type === "accessory").map(p => p.alias);
 
                 for (let i = 0; i < this.value.accessories.length; i++) {
-                    if (this.value.accessories[i].accessory === this.plugin.details.alias) {
+                    if (alias.indexOf(this.value.accessories[i].accessory) >= 0) {
                         index.push(i);
                     }
                 }
@@ -260,6 +262,24 @@
                             if (this.fix) {
                                 this.fix(this.$t("accessory_invalid_json"));
                             }
+
+                            if (this.value.accessories[index] && Array.isArray(this.value.accessories[index])) {
+                                if (this.value.accessories[index].length === 1) {
+                                    this.value.accessories[index] = this.value.accessories[index][0];
+                                } else {
+                                    throw new Error(this.$t("accessory_invalid_json"));
+                                }
+                            }
+
+                            if (this.value.accessories[index].accessories && Array.isArray(this.value.accessories[index].accessories)) {
+                                if (this.value.accessories[index].accessories.length === 1) {
+                                    this.value.accessories[index] = this.value.accessories[index].accessories[0];
+                                } else {
+                                    throw new Error(this.$t("accessory_invalid_json"));
+                                }
+                            } else if (this.value.accessories[index].accessories) {
+                                this.value.accessories[index] = this.value.accessories[index].accessories;
+                            }
                         } catch {
                             if (this.error) {
                                 this.error(this.$t("accessory_invalid_json"));
@@ -278,6 +298,24 @@
 
                             if (this.fix) {
                                 this.fix(this.$t("platform_invalid_json"));
+                            }
+
+                            if (this.value.platforms[index] && Array.isArray(this.value.platforms[index])) {
+                                if (this.value.platforms[index].length === 1) {
+                                    this.value.platforms[index] = this.value.platforms[index][0];
+                                } else {
+                                    throw new Error(this.$t("platform_invalid_json"));
+                                }
+                            }
+
+                            if (this.value.platforms[index].platforms && Array.isArray(this.value.platforms[index].platforms)) {
+                                if (this.value.platforms[index].platforms.length === 1) {
+                                    this.value.platforms[index] = this.value.platforms[index].platforms[0];
+                                } else {
+                                    throw new Error(this.$t("platform_invalid_json"));
+                                }
+                            } else if (this.value.platforms[index].platforms) {
+                                this.value.platforms[index] = this.value.platforms[index].platforms;
                             }
                         } catch {
                             if (this.error) {
@@ -335,9 +373,9 @@
 
                 this.gshPopup = null;
 
-                const index = this.configuration.platforms.findIndex(p => (p.plugin_map || {}).plugin_name === "google-home");
+                const index = this.value.platforms.findIndex(p => (p.plugin_map || {}).plugin_name === "google-home");
 
-                this.configuration.platforms[index].token = token;
+                this.value.platforms[index].token = token;
 
                 if (this.save) {
                     this.save();

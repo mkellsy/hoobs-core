@@ -10,10 +10,11 @@
     --background-accent: #fcfcfc;
     --background-highlight: #f1f1f1;
     --nav-background: #474746;
-    --nav-lignt: #585857;
+    --nav-light: #585857;
     --warning: #e30505;
     --button: #fff;
     --button-text: #777;
+    --button-border: #e5e5e5;
     --button-primary: #feb400;
     --button-primary-text: #fff;
     --input-background: #fff;
@@ -36,7 +37,6 @@
     --log-text: #f1f1f1;
     --border: #e5e5e5;
     --border-dark: #acacac;
-    --logo-color: #fff;
     --modal: #ffffff94;
     --elevation-small: 0 1px 1px 0 rgba(0, 0, 0, 0.14),
                        0 2px 1px -1px rgba(0, 0, 0, 0.12),

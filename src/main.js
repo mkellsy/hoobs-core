@@ -28,6 +28,10 @@ import App from "./app.vue";
             $client() {
                 return config.client;
             },
+
+            $cluster() {
+                return config.cluster;
+            },
         
             $bridge() {
                 return config.bridge;
@@ -53,14 +57,12 @@ import App from "./app.vue";
                 return config.instance;
             },
 
-            $system() {
-                switch (config.system) {
-                    case "rocket":
-                        return "rocket";
-                    
-                    default:
-                        return "hoobs";
-                }
+            $theme() {
+                return Themes[config.client.theme || "hoobs-light"];
+            },
+
+            $themes() {
+                return Themes;
             }
         },
 
@@ -76,7 +78,7 @@ import App from "./app.vue";
 
                 window.location.reload();
             },
-        
+
             async $configure() {
                 await config.configure();
             },

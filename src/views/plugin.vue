@@ -13,7 +13,7 @@
                         <span v-else class="status">{{ $t("updated") }}</span>
                     </span>
                     <div v-if="plugin.scope === 'hoobs'" class="certified">
-                        {{ title }} Certified
+                        HOOBS Certified
                     </div>
                     <div class="version">
                         {{ plugin.installed || plugin.version }}
@@ -33,7 +33,7 @@
                 </div>
                 <div v-else class="control">
                     <div v-if="plugin.scope === 'hoobs'" class="certified">
-                        {{ title }} Certified
+                        HOOBS Certified
                     </div>
                     <div class="version">
                         {{ plugin.installed || plugin.version }}
@@ -41,7 +41,7 @@
                     </div>
                     <div v-if="!working" class="actions">
                         <span v-on:click="$router.go(-1)" class="icon">chevron_left</span>
-                        <div v-on:click.stop="check()" class="button button-primary">{{ $t("install") }}</div>
+                        <div v-on:click.stop="install()" class="button button-primary">{{ $t("install") }}</div>
                         <a :href="`https://www.npmjs.com/package/${plugin.scope ? `@${plugin.scope}/${plugin.name}` : plugin.name}`" target="_blank">NPM</a>
                         <span v-if="plugin.homepage" class="link-seperator">|</span>
                         <a v-if="plugin.homepage" :href="plugin.homepage" target="_blank">{{ $t("details") }}</a>
@@ -91,16 +91,6 @@
 
             categories() {
                 return this.$store.state.categories;
-            },
-
-            title() {
-                switch (this.$system) {
-                    case "rocket":
-                        return "Rocket";
-                    
-                    default:
-                        return "HOOBS";
-                }
             }
         },
 
@@ -198,91 +188,65 @@
                 });
             },
 
-            async check() {
-                if (!this.locked) {
-                    const lookup = await this.api.get(`/plugins/certified/lookup/${encodeURIComponent(this.plugin.scope ? `@${this.plugin.scope}/${this.plugin.name}` : this.plugin.name)}`);
-
-                    if (lookup.certified && lookup.package === this.plugin.scope ? `@${this.plugin.scope}/${this.plugin.name}` : this.plugin.name) {
-                        await this.uninstall(undefined, lookup.base, true);
-                        await this.install(this.plugin.scope, this.plugin.name);
-                    } else if (lookup.base === this.plugin.name) {
-                        const scope = lookup.package.split("/").replace(/@/gi, "");
-                        const name = lookup.package.replace(`@${scope}/`, "");
-
-                        await this.install(scope, name);
-                    } else {
-                        await this.install(this.plugin.scope, this.plugin.name);
-                    }
-                }
-            },
-
-            async install(scope, name) {
+            async install() {
                 if (!this.locked) {
                     this.working = true;
 
-                    if (scope === undefined) {
-                        scope = this.plugin.scope;
-                    }
-
-                    if (name === undefined) {
-                        name = this.plugin.name;
-                    }
-
                     const restart = this.running;
 
-                    if (this.server && restart) {
+                    if (restart) {
                         this.$store.commit("lock");
 
                         await this.api.post("/service/stop");
                     }
 
-                    const results = await this.api.put(`/plugins/${encodeURIComponent(scope ? `@${scope}/${name}` : name)}`);
+                    const results = await this.api.put(`/plugins/${encodeURIComponent(`${this.plugin.scope ? `@${this.plugin.scope}/${this.plugin.name}` : this.plugin.name}@${this.plugin.version}`)}`);
 
-                    if (this.server && restart) {
+                    if (restart) {
                         await this.api.post("/service/start");
 
                         this.$store.commit("unlock");
                     }
 
+                    this.working = false;
+
                     if (results.success) {
-                        this.oninstall(results.details.type, results.details.name, results.details.alias, results.plugin);
+                        this.$router.push({
+                            path: `/config/${results.plugin.name}`
+                        });
                     } else {
-                        this.onuninstall();
+                        this.$router.push({
+                            path: "/plugins"
+                        });
                     }
                 }
             },
             
-            async uninstall(scope, name, skipEvents) {
+            async uninstall() {
                 if (!this.locked) {
                     this.working = true;
 
-                    if (scope === undefined) {
-                        scope = this.plugin.scope;
-                    }
-
-                    if (name === undefined) {
-                        name = this.plugin.name;
-                    }
-
                     const restart = this.running;
 
-                    if (this.server && restart) {
+                    if (restart) {
                         this.$store.commit("lock");
 
                         await this.api.post("/service/stop");
                     }
 
-                    await this.api.delete(`/plugins/${encodeURIComponent(scope ? `@${scope}/${name}` : name)}`);
+                    await this.api.delete(`/plugins/${encodeURIComponent(`${this.plugin.scope ? `@${this.plugin.scope}/${this.plugin.name}` : this.plugin.name}`)}`);
 
-                    if (this.server && restart) {
+                    if (restart) {
                         await this.api.post("/service/start");
 
                         this.$store.commit("unlock");
                     }
 
-                    if (!skipEvents) {
-                        this.onuninstall();
-                    }
+                    this.working = false;
+
+                    this.$router.push({
+                        path: "/plugins"
+                    });
                 }
             },
 
@@ -292,34 +256,26 @@
 
                     const restart = this.running;
 
-                    if (this.server && restart) {
+                    if (restart) {
                         this.$store.commit("lock");
 
                         await this.api.post("/service/stop");
                     }
 
-                    await this.api.post(`/plugins/${encodeURIComponent(this.plugin.scope ? `@${this.plugin.scope}/${this.plugin.name}` : this.plugin.name)}`);
+                    await this.api.post(`/plugins/${encodeURIComponent(`${this.plugin.scope ? `@${this.plugin.scope}/${this.plugin.name}` : this.plugin.name}@${this.plugin.version}`)}`);
 
-                    if (this.server && restart) {
+                    if (restart) {
                         await this.api.post("/service/start");
 
                         this.$store.commit("unlock");
                     }
 
-                    this.onupdate();
+                    this.working = false;
+
+                    this.$router.push({
+                        path: "/plugins"
+                    });
                 }
-            },
-
-            oninstall(type, name, alias, plugin) {
-                window.location.href = `/config/${plugin.name}`;
-            },
-
-            onuninstall() {
-                window.location.href = "/plugins";
-            },
-
-            onupdate() {
-                window.location.href = "/plugins";
             }
         }
     }
@@ -354,6 +310,7 @@
     #plugin .info {
         width: 230px;
         padding: 20px 0 20px 20px;
+        overflow: auto;
     }
 
     #plugin .actions {

@@ -1,151 +1,292 @@
 #!/usr/bin/env node
 
-process.title = "hoobs-core";
+process.title = "hoobs";
 
-const OS = require("os");
-const Ora = require("../node_modules/ora");
-const File = require("../node_modules/fs-extra/lib");
-const Remove = require("../node_modules/rimraf");
+const File = require("fs-extra");
 
 const { dirname, join } = require("path");
-const { exec, spawn } = require("child_process");
+const { execSync } = require("child_process");
 
 let password = null;
+let debug = false;
+let reboot = false;
+let cpmod = true;
+
+const command = process.argv[2];
 
 process.argv.forEach((value, index) => {
-    if (value === "-p") {
+    if (value === "-p" || value === "--pass") {
         password = "#sudo-password#"
     } else if (password === "#sudo-password#") {
         password = value;
 
         return;
+    } else if (value === "-d" || value === "--debug") {
+        debug = true;
+    } else if (value === "-r" || value === "--reboot") {
+        reboot = true;
+    } else if (value === "--ignore-modules") {
+        cpmod = false;
+    } else if (value === "-v" || value === "--version") {
+        console.log(JSON.parse(File.readFileSync(join(dirname(File.realpathSync(join(__filename, "../"))), "package.json"))).version);
+
+        process.exit(0);
+    } else if (value === "-h" || value === "--help") {
+        console.log("");
+        console.log("help: hoobs [-v | --version] [command] [-d | --debug] [-i | --instance name] [-p | -pass password]");
+        console.log("    Display information about builtin commands.");
+        console.log("");
+        console.log("    Starts the HOOBS service and controls the HOOBS service.");
+        console.log("    and cluster clients and instances. This also can install");
+        console.log("    the HOOBS service and cluster clients and instances.");
+        console.log("");
+        console.log("    Commands:");
+        console.log("        *                         run in default mode");
+        console.log("        client                    run a cluster client");
+        console.log("        server                    run a cluster instance");
+        console.log("        service log               (elevated) show the output of the current service or cluster client");
+        console.log("        service start             (elevated) start the current service or cluster client");
+        console.log("        service stop              (elevated) stop the current service or cluster client");
+        console.log("        service restart           (elevated) restart the current service or cluster client");
+        console.log("        service enable            (elevated) enable the current service or cluster client");
+        console.log("        service disable           (elevated) disable the current service or cluster client");
+        console.log("        service install           (elevated) install a default service");
+        console.log("        cluster                   (elevated) list all cluster instances");
+        console.log("        cluster client            (elevated) configure and install a cluster client service");
+        console.log("        cluster create            (elevated) configure and install a named cluster instance service");
+        console.log("        cluster [name] log        (elevated) show the output of a named cluster instance");
+        console.log("        cluster [name] start      (elevated) start a named cluster instance");
+        console.log("        cluster [name] stop       (elevated) stop a named cluster instance");
+        console.log("        cluster [name] restart    (elevated) restart a named cluster instance");
+        console.log("        cluster [name] enable     (elevated) enable a named cluster instance");
+        console.log("        cluster [name] disable    (elevated) disable a named cluster instance");
+        console.log("        switch homebridge         (elevated) switches to the homebridge services if installed");
+        console.log("        switch hoobs              (elevated) switches to the hoobs service");
+        console.log("        switch uninstall          (elevated) remove homebridge and the switch function");
+        console.log("        upgrade                   (elevated) used by npm postinstall when upgrading");
+        console.log("        cockpit                   starts an unattached remote terminal session");
+        console.log("");
+        console.log("    Options:");
+        console.log("        -v, --version             output the version number");
+        console.log("        -d, --debug               turn on debug level logging");
+        console.log("        -i, --instance [name]     start homebridge as a named instance");
+        console.log("        -p, --pass [password]     password to use for elevated commands");
+        console.log("        -h, --help                displays this help menu")
+        console.log("");
+
+        process.exit(0);
     }
 });
 
-const home = OS.userInfo().homedir;
-const root = join(home, ".hoobs");
-const applicaiton = join(dirname(File.realpathSync(__filename)), "../");
-const installed = JSON.parse(File.readFileSync(join(applicaiton, "package.json")));
+switch ((command || "").toLowerCase()) {
+    case "cluster":
+        const root = dirname(File.realpathSync(__filename));
 
-let executing = null;
-let throbber = null;
+        switch ((process.argv[3] || "").toLowerCase()) {
+            case "client":
+                (require(join(root, "../scripts/client")))();
+                break;
 
-if (!File.existsSync(root)){
-    File.mkdirSync(root);
-}
+            case "create":
+                (require(join(root, "../scripts/instance")))("install");
+                break;
 
-if (File.existsSync(join(root, "package.json"))) {
-    try {
-        executing = JSON.parse(File.readFileSync(join(root, "package.json")));
-    } catch {
-        executing = null;
-    }
-}
+            default:
+                if ((process.argv[3] || "") !== "") {
+                    (require(join(root, "../scripts/instance")))("control", process.argv[3] || "", process.argv[4] || "");
+                } else {
+                    (require(join(root, "../scripts/instance")))();
+                }
 
-const preparePackage = function() {
-    const plugins = [];
+                break;
+        }
 
-    throbber = Ora("Initilizing").start();
+        break;
 
-    if (executing && executing.dependencies) {
-        const dependencies = Object.keys(executing.dependencies);
+    case "service":
+        switch ((process.argv[3] || "").toLowerCase()) {
+            case "log":
+                if (File.existsSync("/etc/systemd/system/multi-user.target.wants/hoobs.service")) {
+                    execSync("journalctl -o cat -n 500 -f -u hoobs.service", {
+                        stdio: "inherit"
+                    });
+                } else {
+                    console.log("");
+                    console.log("You must first enable the HOOBS service");
+                    console.log("");
+                }
 
-        for (let i = 0; i < dependencies.length; i++) {
-            const name = dependencies[i];
-            const dependency = executing.dependencies[dependencies[i]];
+                break;
 
-            if ((name.startsWith("homebridge-") || (name.startsWith("@hoobs/") && name !== "@hoobs/homebridge")) && !installed.dependencies.hasOwnProperty(name)) {
-                installed.dependencies[name] = dependency;
+            case "install":
+                (async () => {
+                    const root = dirname(File.realpathSync(__filename));
+                    const enviornment = await (require(join(root, "../scripts/enviornment")))();
+                
+                    await (require(join(root, "../scripts/migrate")))(enviornment);
+                    await (require(join(root, "../scripts/prerequisites")))();
+                    await (require(join(root, "../scripts/nginx")))(true);
+                    await (require(join(root, "../scripts/systemd")))(true);
+                    await (require(join(root, "../scripts/reboot")))(reboot, "hoobs.service");
+                })();
 
-                plugins.push(name);
+                break;
+
+            case "start":
+                if (File.existsSync("/etc/systemd/system/multi-user.target.wants/hoobs.service")) {
+                    execSync("systemctl start hoobs.service");
+                } else {
+                    console.log("");
+                    console.log("You must first enable the HOOBS service");
+                    console.log("");
+                }
+
+                break;
+
+            case "stop":
+                if (File.existsSync("/etc/systemd/system/multi-user.target.wants/hoobs.service")) {
+                    execSync("systemctl stop hoobs.service");
+                } else {
+                    console.log("");
+                    console.log("You must first enable the HOOBS service");
+                    console.log("");
+                }
+
+                break;
+
+            case "restart":
+                if (File.existsSync("/etc/systemd/system/multi-user.target.wants/hoobs.service")) {
+                    execSync("systemctl restart hoobs.service");
+                } else {
+                    console.log("");
+                    console.log("You must first enable the HOOBS service");
+                    console.log("");
+                }
+
+                break;
+
+            case "enable":
+                if (File.existsSync("/etc/systemd/system/hoobs.service")) {
+                    execSync("systemctl enable hoobs.service");
+                } else {
+                    console.log("");
+                    console.log("You must first install the HOOBS service");
+                    console.log("");
+                }
+
+                break;
+    
+            case "disable":
+                if (File.existsSync("/etc/systemd/system/hoobs.service")) {
+                    execSync("systemctl disable hoobs.service");
+                } else {
+                    console.log("");
+                    console.log("You must first install the HOOBS service");
+                    console.log("");
+                }
+
+                break;
+        }
+
+        break;
+
+    case "upgrade":
+        (async () => {
+            const root = dirname(File.realpathSync(__filename));
+
+            let configured = false;
+
+            if (File.existsSync("/home")) {
+                const folders = File.readdirSync("/home").filter(file => File.lstatSync(join("/home", file)).isDirectory());
+    
+                for (let i = 0; i < folders.length; i++) {    
+                    if (File.existsSync(join("/home", folders[i], ".hoobs/etc/config.json"))) {
+                        configured = true;
+                    }
+                }
             }
-        }
-    }
+    
+            if (File.existsSync("/root/.hoobs/etc/config.json")) {    
+                configured = true;
+            }
 
-    if (installed.devDependencies) {
-        delete installed.devDependencies;
-    }
+            if (configured) {
+                await (require(join(root, "../scripts/nginx")))(false);
+                await (require(join(root, "../scripts/systemd")))(false);
+                await (require(join(root, "../scripts/config")))();
+                await (require(join(root, "../scripts/reboot")))(reboot, "hoobs.service");
+            }
+        })();
 
-    if (installed.scripts) {
-        delete installed.scripts;
-    }
+        break;
 
-    if (installed.bin) {
-        delete installed.bin;
-    }
+    case "cockpit":
+        new (require(join(dirname(File.realpathSync(__filename)), "../lib/cockpit")))().start(true).then((registration) => {
+            console.log("");
+            console.log("registration code");
+            console.log(registration);
+            console.log("");
+        }).catch((error) => {
+            console.log("");
+            console.log(error);
+            console.log("");
+        });
 
-    if (File.existsSync(join(root, "package.json"))) {
-        File.unlinkSync(join(root, "package.json"));
-    }
+        break;
 
-    File.appendFileSync(join(root, "package.json"), JSON.stringify(installed, null, 4));
+    case "switch":
+        (async () => {
+            const root = dirname(File.realpathSync(__filename));
 
-    throbber.stop();
+            if (File.existsSync("/etc/systemd/system/hoobs.service") && File.existsSync("/etc/systemd/system/homebridge.service")) {
+                switch ((process.argv[3] || "").toLowerCase()) {
+                    case "hoobs":
+                        if (File.existsSync("/etc/systemd/system/multi-user.target.wants/homebridge.service")) {
+                            execSync("systemctl stop homebridge.service");
+                            execSync("systemctl disable homebridge.service");
+                        }
+    
+                        if (File.existsSync("/etc/systemd/system/multi-user.target.wants/homebridge-config-ui-x.service")) {
+                            execSync("systemctl stop homebridge-config-ui-x.service");
+                            execSync("systemctl disable homebridge-config-ui-x.service");
+                        }
+    
+                        if (File.existsSync("/etc/systemd/system/hoobs.service")) {
+                            execSync("systemctl enable hoobs.service");
+                            execSync("systemctl restart hoobs.service");
+                        }
+    
+                        break;
+    
+                    case "homebridge":
+                        if (File.existsSync("/etc/systemd/system/multi-user.target.wants/hoobs.service")) {
+                            execSync("systemctl stop hoobs.service");
+                            execSync("systemctl disable hoobs.service");
+                        }
+    
+                        if (File.existsSync("/etc/systemd/system/homebridge.service")) {
+                            execSync("systemctl enable homebridge.service");
+                            execSync("systemctl restart homebridge.service");
+                        }
+    
+                        if (File.existsSync("/etc/systemd/system/homebridge-config-ui-x.service")) {
+                            execSync("systemctl enable homebridge-config-ui-x.service");
+                            execSync("systemctl restart homebridge-config-ui-x.service");
+                        }
+    
+                        break;
+                    
+                    case "uninstall":
+                        await (require(join(root, "../scripts/uninstall")))((await (require(join(root, "../scripts/enviornment")))()));
+                        break;
+                }
+            }
+        })();
 
-    return plugins;
-}
+        break;
 
-const setupUserMode = function() {
-    throbber = Ora("Setting Up User Mode").start();
+    default:
+        (require(join(dirname(File.realpathSync(__filename)), "../scripts/loader")))(debug, password, cpmod);
 
-    if (File.existsSync(join(root, "dist"))) {
-        Remove.sync(join(root, "dist"));
-    }
-
-    if (File.existsSync(join(root, "lib"))) {
-        Remove.sync(join(root, "lib"));
-    }
-
-    if (File.existsSync(join(root, "node_modules"))) {
-        Remove.sync(join(root, "node_modules"));
-    }
-
-    File.copySync(join(applicaiton, "node_modules"), join(root, "node_modules"));
-
-    if (File.existsSync(join(root, "package-lock.json"))) {
-        File.unlinkSync(join(root, "package-lock.json"));
-    }
-
-    if (File.existsSync(join(root, "default.json"))) {
-        File.unlinkSync(join(root, "default.json"));
-    }
-
-    File.copySync(join(applicaiton, "default.json"), join(root, "default.json"));
-
-    throbber.stop();
-}
-
-const installPackages = function(plugins) {
-    return new Promise((resolve) => {
-        throbber = Ora("Initilizing Plugins").start();
-
-        if (plugins.length > 0) {
-            exec(`npm set progress=false && npm install --unsafe-perm ${plugins.join(" ")}`, {
-                cwd: root
-            }, () => {
-                throbber.stop();
-        
-                resolve();
-            });
-        } else {
-            throbber.stop();
-
-            resolve();
-        }
-    });
-}
-
-if (!executing || installed.version !== executing.version || !File.existsSync(join(root, "lib")) || !File.existsSync(join(root, "dist"))) {
-    const plugins = preparePackage();
-
-    setupUserMode();
-
-    installPackages(plugins).then(() => {
-        File.copySync(join(applicaiton, "dist"), join(root, "dist"));
-        File.copySync(join(applicaiton, "lib"), join(root, "lib"));
-
-        require(join(root, "lib/cli"))();
-    });
-} else {
-    require(join(root, "lib/cli"))();
+        break;
 }

@@ -5,15 +5,8 @@ export default class Config {
     constructor () {
         this._index = 0;
 
-        this._configuration = {};
-        this._system = "hoobs";
         this._ui = {};
-
-        this._names = [];
-    }
-
-    get system() {
-        return (this._system || "hoobs").split("-")[0].toLowerCase();
+        this._configuration = {};
     }
 
     get server() {
@@ -22,6 +15,10 @@ export default class Config {
 
     get client() {
         return this._ui || {};
+    }
+
+    get cluster() {
+        return this._cluster;
     }
 
     get bridge() {
@@ -54,11 +51,7 @@ export default class Config {
 
     list() {
         return new Promise(async (resolve) => {
-            this._instances = (await Request.get("/api/config")).data.client.instances;
-
-            if (!this._instances) {
-                this._instances = [""];
-            }
+            this._instances = (await Request.get("/api/config")).data.client.instances || [""];
 
             if (!Array.isArray(this._instances)) {
                 this._instances = [this._instances];
@@ -67,30 +60,30 @@ export default class Config {
             Request.defaults.headers.get["Authorization"] = Cookies.get("token");
 
             const queue = [];
-            this._names = []
+            const names = []
 
             for (let i = 0; i < this._instances.length; i++) {
-                this._names.push("Unavailable");
+                names.push("Unavailable");
             }
 
             for (let i = 0; i < this._instances.length; i++) {
                 queue.push(true);
 
                 Request.get(`${this._instances[i]}/api/config`).then((response) => {
-                    this._names[i] = (response.data.bridge || {}).name || "Unavailable";
+                    names[i] = (response.data.bridge || {}).name || "Unavailable";
                 }).catch(() => {
-                    this._names[i] = "Unavailable";
+                    names[i] = "Unavailable";
                 }).finally(() => {
                     queue.pop();
 
                     if (queue.length === 0) {
-                        resolve(this._names);
+                        resolve(names);
                     }
                 });
             }
 
             if (queue.length === 0) {
-                resolve(this._names);
+                resolve(names);
             }
         });
     }
@@ -119,7 +112,7 @@ export default class Config {
         const config = (await Request.get("/api/config")).data;
 
         this._ui = config.client;
-        this._system = config.system;
+        this._cluster = config.mode === "cluster";
         this._configuration = (await Request.get(`${this.instance}/api/config`)).data;
     }
 }

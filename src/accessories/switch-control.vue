@@ -2,7 +2,7 @@
     <div id="control">
         <svg width="190" height="190" viewBox="0 0 100 100">
             <circle style="fill: var(--background); stroke: var(--text-light);" stroke-width="0.5" cx="50" cy="50" r="45" />
-            <circle :fill="value.values[characteristic] ? color : (($client.theme || `${system}-light`).endsWith('dark') ? '#777777' : '#cccccc')" cx="50" cy="50" r="43.5" />
+            <circle :fill="value.values[characteristic] ? color : $theme.accessories.off" cx="50" cy="50" r="43.5" />
             <path fill="#ffffffef" :d="icon" />
             <circle fill="#ffffff00" stroke="none" cx="50" cy="50" r="45" @click="toggle" style="cursor: pointer;" />
         </svg>
@@ -69,24 +69,20 @@
 
             color() {
                 if (this.value.name.toLowerCase().includes("light") || this.value.name.toLowerCase().includes("lamp")) {
-                    return "#ffd500";
+                    return this.$theme.accessories.light;
                 } else if (this.value.name.toLowerCase().includes("garbage")) {
-                    return "#f9bd2b";
+                    return this.$theme.accessories.disposal;
                 } else if (this.value.name.toLowerCase().includes("fireplace")) {
-                    return "#f27c05";
+                    return this.$theme.accessories.fireplace;
                 } else if (this.value.type === "switch") {
-                    return "#e75a0e";
+                    return this.$theme.accessories.switch;
                 } else if (this.value.name.toLowerCase().includes("fan") || this.value.type === "fan") {
-                    return "#f9bd2b";
+                    return this.$theme.accessories.fan;
                 } else if (this.value.type === "outlet") {
-                    return "#00d42d";
+                    return this.$theme.accessories.outlet;
                 }
 
-                return "#ffd500";
-            },
-
-            system() {
-                return this.$system;
+                return this.$theme.accessories.light;
             }
         },
 

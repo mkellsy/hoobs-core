@@ -1,9 +1,10 @@
 {
     "server": {
         "port": 8080,
+        "origin": "*",
         "autostart": 0,
         "home_setup_id": "X-HM://",
-        "polling_seconds": 2
+        "polling_seconds": 5
     },
     "client": {
         "default_route": "status",
@@ -14,7 +15,11 @@
         "country_code": "US",
         "postal_code": "94040"
     },
-    "bridge": {},
+    "bridge": {
+        "name": "HOOBS",
+        "port": 51826,
+        "pin": "031-45-154"
+    },
     "description": "",
     "ports": {},
     "plugins": [],

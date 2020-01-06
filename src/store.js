@@ -6,18 +6,14 @@ Vue.use(Vuex)
 export default new Vuex.Store({
     state: {
         user: null,
-        config: {
-            client: {},
-            server: {}
-        },
         messages: [],
-        installed: [],
         categories: [],
         weather: null,
         forecast: null,
         version: null,
         running: false,
         locked: false,
+        refresh: null,
         screen: {
             width: null,
             height: null
@@ -60,13 +56,9 @@ export default new Vuex.Store({
         query: "",
         results: [],
         streamed: {},
-        notifications: {}
+        notifications: []
     },
     mutations: {
-        configure(state, data) {
-            state.config[data.type] = data.config;
-        },
-
         session(state, user) {
             state.user = user;
         },
@@ -77,6 +69,14 @@ export default new Vuex.Store({
 
         unlock(state) {
             state.locked = false;
+        },
+
+        update(state) {
+            state.refresh = new Date();
+        },
+
+        reboot(state) {
+            state.refresh = new Date();
         },
 
         show(state, menu) {
@@ -108,11 +108,19 @@ export default new Vuex.Store({
         },
 
         push(state, payload) {
-            if (!state.notifications[payload.name]) {
-                state.notifications[payload.name] = [];
-            }
+            state.notifications.push(payload);
 
-            state.notifications[payload.name].push(payload.data);
+            while (state.notifications.length > 5) {
+                state.notifications.shift();
+            }
+        },
+
+        dismiss(state, index) {
+            state.notifications.splice(index, 1);
+        },
+
+        load(state, notifications) {
+            state.notifications = notifications;
         },
 
         monitor(state, payload) {
@@ -192,10 +200,6 @@ export default new Vuex.Store({
 
         last(state, results) {
             state.results = results;
-        },
-
-        cache(state, data) {
-            state.installed = data;
         },
 
         category(state, data) {
